@@ -1,5 +1,5 @@
 # ASTAR ALGO
-Implementation of the A* Algorithm
+Implementation of the A* Algorithm using the [pseudocode](https://en.wikipedia.org/wiki/A*_search_algorithm#Pseudocode) on the wikipedia.
 
 ## Save your own mazes
 Slots 6-9 are empty:
