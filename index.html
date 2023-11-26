@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        canvas {
+            border: 1px solid #000;
+        }
+
+        body {
+            background-color: #222;
+            color: #ab0cb3;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+
+        #diagonals {
+            position: absolute;
+            left: 5%;
+            top: 40%;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+        }
+
+        #controls {
+            position: absolute;
+            right: 2%;
+            top: 30%;
+        }
+    </style>
+    <title>A* Algo</title>
+</head>
+<body>
+    <p id="diagonals">Diagonals: false</p>
+    <div id="controls">
+        <p class="controls">Controls:</p>
+        <p class="controls">Click cell to toggle wall/empty</p>
+        <p class="controls">Click start/end then click new position to relocate</p>
+        <p class="controls">r to reset grid</p>
+        <p class="controls">s to start</p>
+        <p class="controls">c to clear path</p>
+        <p class="controls">d to toggle diagonal movement</p>
+        <p class="controls">p to print maze to console</p>
+        <p class="controls">1-9 to load mazes</p>
+    </div>
+    <canvas id="gridCanvas" width="800" height="800"></canvas>
+
+    <script>
+        let clickMode = 0;  // default click
+        let playing = false;  // algorithm running
+        let justPlayed = false;  // for cleanup
+        let diagonals = false;  // are diagonal movements valid
+
+        // Define the size of the grid
+        const rows = 20;
+        const cols = 20;
+
+        let startPos = [0, 0];  // position of start square
+        let endPos = [rows - 1, cols - 1];  // position of end square
+
+        function Cell(value) {
+            this.value = value;
+        }
+
+        // Get the canvas element and its context
+        const canvas = document.getElementById("gridCanvas");
+        const ctx = canvas.getContext("2d");
+
+        const diagonalsEl = document.getElementById('diagonals');
+
+        // Calculate the size of each cell
+        const cellWidth = canvas.width / cols;
+        const cellHeight = canvas.height / rows;
+
+        // Create a 2D array to represent the grid
+        const grid = [];
+
+        function initGrid() {
+            // Initialize the grid with values or states for each cell
+            startPos = [0, 0];
+            endPos = [rows - 1, cols - 1];
+            for (let i = 0; i < rows; i++) {
+                grid[i] = [];
+                for (let j = 0; j < cols; j++) {
+                    if (i == 0 && j == 0) {
+                        grid[i][j] = new Cell(2);
+                    } else if (i == (rows - 1) && j == (cols - 1)) {
+                        grid[i][j] = new Cell(3);
+                    } else {
+                        grid[i][j] = new Cell(0); // For example, 0 represents an empty cell
+                    }
+                }
+            }
+        }
+
+        function cleanupGrid() {
+            for (const row of grid) {
+                for (const cell of row) {
+                    if (cell.value == 4) {
+                        cell.value = 0;
+                    }
+                }
+            }
+        }
+
+        // Function to draw the grid on the canvas
+        function drawGrid() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            for (let i = 0; i < rows; i++) {
+                for (let j = 0; j < cols; j++) {
+                    // Set the color or style based on the cell's value or state
+                    switch (grid[i][j].value) {
+                        case 0:  // empty
+                            ctx.fillStyle = "#2e2e2e";
+                            break;
+                        case 1:  // wall
+                            ctx.fillStyle = "#68a0b0";
+                            break;
+                        case 2:  // start point
+                            ctx.fillStyle = "#046307";
+                            break;
+                        case 3:
+                            ctx.fillStyle = "#cc0002";  // end point
+                            break;
+                        case 4:
+                            ctx.fillStyle ="#512888";
+                            break;
+                    }
+
+                    // Draw the cell with a black border
+                    ctx.fillRect(j * cellWidth, i * cellHeight, cellWidth, cellHeight);
+                    ctx.strokeStyle = "#000";
+                    ctx.strokeRect(j * cellWidth, i * cellHeight, cellWidth, cellHeight);
+                }
+            }
+        }
+
+        // Initial draw
+        initGrid();
+        drawGrid();
+
+        // You can update the grid and redraw as needed based on user interactions or other events
+        // For example, changing the state of a cell when clicked
+        canvas.addEventListener("click", (e) => {
+            if (playing) {
+                return;
+            }
+
+            if (justPlayed) {
+                cleanupGrid();
+                justPlayed = false;
+            }
+
+            const mouseX = e.clientX - canvas.getBoundingClientRect().left;
+            const mouseY = e.clientY - canvas.getBoundingClientRect().top;
+
+            const clickedRow = Math.floor(mouseY / cellHeight);
+            const clickedCol = Math.floor(mouseX / cellWidth);
+
+            cell = grid[clickedRow][clickedCol];
+
+            if (clickMode == 0) {
+                switch (cell.value) {
+                    case 0:
+                    case 4:
+                        cell.value = 1;
+                        break;
+                    case 1:
+                        cell.value = 0;
+                        break;
+                    case 2:
+                        clickMode = 1;  // move start
+                        break;
+                    default:
+                        clickMode = 2;  // move end
+                }
+            }
+            else if (clickMode == 1 && cell.value !== 3) {
+                cell.value = 2;
+                grid[startPos[0]][startPos[1]].value = 0;
+                startPos = [clickedRow, clickedCol];
+                clickMode = 0;
+            }
+            else if (clickMode == 2 && cell.value !== 2) {
+                cell.value = 3;
+                grid[endPos[0]][endPos[1]].value = 0;
+                endPos = [clickedRow, clickedCol];
+                clickMode = 0;
+            }
+
+            // Redraw the grid
+            drawGrid();
+        });
+
+        document.addEventListener('keydown', async (e) => {
+            if (playing) {
+                return;
+            }
+            switch (e.key) {
+                case 'r':
+                    clickMode = 0;
+                    initGrid();
+                    drawGrid();
+                    break;
+                case 's':
+                    cleanupGrid();
+                    drawGrid();
+                    playing = true;
+                    aStar();
+                    break;
+                case 'c':
+                    cleanupGrid();
+                    drawGrid();
+                    justPlayed = false;
+                    break;
+                case 'd':
+                    diagonals = !diagonals;
+                    diagonalsEl.textContent = `Diagonals: ${diagonals}`;
+                    break;
+                case 'p':
+                    console.log(JSON.stringify(grid.map(row => row.map(cell => cell.value !== 4 ? cell : new Cell(0)))));
+                    break;
+                case '1':
+                case '2':
+                case '3':
+                case '4':
+                case '5':
+                case '6':
+                case '7':
+                case '8':
+                case '9':
+                case '0':
+                    const num = e.key;
+                    try {
+                        const file = await fetch(`maze${e.key}.json`);
+                        const res = await file.text();
+                        jsonGrid = JSON.parse(res);
+                        for (let i = 0; i < rows; i++) {
+                            for (let j = 0; j < cols; j++) {
+                                cell = jsonGrid[j][i];
+                                if (cell.value == 2) {
+                                    startPos = [j, i];
+                                }
+                                if (cell.value == 3) {
+                                    endPos = [j, i];
+                                }
+                                grid[j][i] = jsonGrid[j][i];
+                            }
+                        }
+                        drawGrid();
+                    } catch (e) {
+                        console.error(`File maze${num}.json not found`);
+                    }
+                    break;
+            }
+        });
+
+
+        // heuristic for distance to endPos
+        function h(pos) {
+            const x = Math.abs(pos[0] - endPos[0]);
+            const y = Math.abs(pos[1] - endPos[1]);
+            return diagonals ? Math.min(x, y) : x + y;
+        }
+
+        /** 
+         * Calculate lowest fScore in openSet
+         * @param {Map} fScore
+         * @param {Set} openSet 
+         * @returns {String}
+         */
+        function getCurrent(fScore, openSet) {
+            const candidates = [...fScore].filter((v) => openSet.has(v[0]));
+            const res = candidates.reduce((prev, curr) => curr[1] < prev[1] ? curr : prev);
+            return res[0];
+        }
+
+        /** 
+         * Reconstruct coords from `.toString()`
+         * @param {String} s
+         * @returns {Array.<Number>}
+        */
+        function stringToArray(s) {
+            return Array.from([parseInt(s.split(',')[0]), parseInt(s.split(',')[1])])
+        }
+
+        /*** 
+         * @param {Array.<Number>} curr
+        */
+        function getNeighbors(curr) {
+            const neighbors = [];
+            if (curr[0] + 1 < rows && grid[curr[0] + 1][curr[1]].value !== 1) {
+                neighbors.push([curr[0] + 1, curr[1]]);
+            }
+            if (curr[0] - 1 >= 0 && grid[curr[0] - 1][curr[1]].value !== 1) {
+                neighbors.push([curr[0] - 1, curr[1]]);
+            }
+            if (curr[1] + 1 < cols && grid[curr[0]][curr[1] + 1].value !== 1) {
+                neighbors.push([curr[0], curr[1] + 1]);
+            }
+            if (curr[1] - 1  >= 0 && grid[curr[0]][curr[1] - 1].value !== 1) {
+                neighbors.push([curr[0], curr[1] - 1]);
+            }
+            if (diagonals) {
+                if (curr[0] + 1 < rows && curr[1] + 1 < cols && grid[curr[0] + 1][curr[1] + 1].value !== 1) {
+                    neighbors.push([curr[0] + 1, curr[1] + 1]);
+                }
+                if (curr[0] + 1 < rows && curr[1] - 1  >= 0 && grid[curr[0] + 1][curr[1] - 1].value !== 1) {
+                    neighbors.push([curr[0] + 1, curr[1] - 1]);
+                }
+                if (curr[0] - 1 >= 0 && curr[1] + 1 < cols && grid[curr[0] - 1][curr[1] + 1].value !== 1) {
+                    neighbors.push([curr[0] - 1, curr[1] + 1]);
+                }
+                if (curr[0] - 1 >= 0 && curr[1] - 1 >= 0 && grid[curr[0] - 1][curr[1] - 1].value !== 1) {
+                    neighbors.push([curr[0] - 1, curr[1] - 1]);
+                }
+            }
+            return neighbors;
+        }
+
+        /** 
+         * Once an optimal path has been found, trace it back
+         * @param {Map} cameFrom
+         * @param {String} curr
+        */
+        function reconstructPath(cameFrom, curr) {
+            while (cameFrom.has(curr)) {
+                curr = cameFrom.get(curr);
+                const currCoords = stringToArray(curr);
+                const cell = grid[currCoords[0]][currCoords[1]];
+                if (currCoords.toString() != startPos.toString()) {
+                    grid[currCoords[0]][currCoords[1]].value = 4;
+                }
+            }
+            drawGrid();
+            justPlayed = true;
+        }
+
+        function failure() {
+            ctx.fillStyle = "#cc0002";
+            ctx.fillRect(startPos[1] * cellWidth, startPos[0] * cellHeight, cellWidth, cellHeight);
+            ctx.strokeStyle = "#000";
+            ctx.strokeRect(startPos[1] * cellWidth, startPos[0] * cellHeight, cellWidth, cellHeight);
+        }
+
+        function aStar() {
+            const openSet = new Set();
+            openSet.add(startPos.toString());
+            const cameFrom = new Map();
+
+            const gScore = new Map();
+            gScore.set(startPos.toString(), 0);
+
+            const fScore = new Map();
+            fScore.set(startPos.toString(), h(startPos));
+
+            while (openSet.size !== 0) {
+                const curr = getCurrent(fScore, openSet);
+                if (curr === endPos.toString()) {
+                    reconstructPath(cameFrom, curr);
+                    playing = false;
+                    return;
+                }
+                openSet.delete(curr);
+                const neighbors = getNeighbors(stringToArray(curr));
+                for (const neighbor of neighbors) {
+                    const strNeighbor = neighbor.toString();
+                    const neighborGScore = gScore.get(strNeighbor) ?? Infinity;
+                    const tentativeGScore = gScore.get(curr) + 1;
+                    if (tentativeGScore < neighborGScore) {
+                        cameFrom.set(strNeighbor, curr);
+                        gScore.set(strNeighbor, tentativeGScore);
+                        fScore.set(strNeighbor, tentativeGScore + h(neighbor));
+                        openSet.add(strNeighbor);
+                    }
+                }
+            }
+            failure();
+            playing = false;
+        }
+    </script>
+</body>
+</html>
